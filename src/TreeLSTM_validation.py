@@ -1,12 +1,9 @@
 import torch
 from torch import nn
 import numpy as np
-import pickle
-import random
-from time import time
 
 class LabelEncoder(object):
-
+    
     """Encoder for objects with tree structure.
 
     Args:
@@ -491,87 +488,63 @@ def convert_tree(father):
     tmp += (c,)
     return tmp
 
-def q_error(preds,targets):
-    qerror = []
-    preds = torch.exp(preds)
-    targets = torch.exp(targets)
-    for i in range(len(targets)):
-        if(preds[i]>targets[i]).cpu().data.numpy()[0]:
-            qerror.append(preds[i]/targets[i]-1)
-        else:
-            qerror.append(targets[i]/preds[i]-1)
-    return torch.mean(torch.cat(qerror))
-
-class RMSELoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mse = nn.MSELoss()
-        
-    def forward(self,yhat,y):
-        return torch.sqrt(self.mse(yhat,y))
-
-
-
-with open("../data/train_64_cat_tree.pkl","rb") as f:
-    trees = pickle.load(f)
-
-converted_trees = []
-for each in trees:
-    converted_trees.append(convert_tree(each))
 
 net = Tree(79, 256, branching_factor=2).cuda()
+net.load_state_dict(torch.load("../model/treelstm_model"))
 
-loss_function = torch.nn.MSELoss()
-# loss_function = torch.nn.L1Loss()
-# loss_function = RMSELoss()
-optimizer = torch.optim.Adadelta(net.parameters(),lr = 0.001)
-total_time = 0
+operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
+              'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
+
+import pickle
+with open("./final/test_64_cat_tree.pkl","rb") as f:
+# with open("./final/job-light_64_cat_tree.pkl","rb") as f:
+    test_trees = pickle.load(f)
+test_converted_trees = []
+for each in test_trees:
+    test_converted_trees.append(convert_tree(each))
+print(len(test_converted_trees))
+
+# loss_fucti
 ec = TreeEncoder(lambda x: x[0],lambda x: x[1])
 lec = LabelEncoder(lambda x: x['labels'],lambda x: x['children'])
-batch_size = 16
-epoch = 100
-r = list(zip(converted_trees,trees))[:10000]
-print(len(r))
-num_of_training_batch = int(10000/batch_size*0.9)
-num_of_validation_batch = int(10000/batch_size*0.1)
-for each in range(epoch):
-    random.shuffle(r)
-    converted_trees,trees = zip(*r)
-    loss_total = 0.
-    v_loss = 0.
-    begin = time()
-    for i in range(num_of_training_batch):
-        net.train(True)
-        inputs, arities = ec.encode_batch(converted_trees[i*batch_size:(i+1)*batch_size])
-        label_inputs, label_arities = lec.encode_batch(trees[i*batch_size:(i+1)*batch_size])
+pgec = LabelEncoder(lambda x:x['pg'],lambda x:x['children'])
+operator = []
+final_result = []
+all_result = []
+label_final_result = []
+label_all_result = []
+pg_all = []
+pg_final = []
+# batch_size = len(test_converted_trees)
+batch_size = 3
+num_of_batch = 1
+# num_of_batch = 0
+with torch.no_grad():
+    net.eval()
+    for cnt in range(num_of_batch):
+        inputs, arities = ec.encode_batch(test_converted_trees[cnt*batch_size:(cnt+1)*batch_size])
+        label_inputs, label_arities = lec.encode_batch(test_trees[cnt*batch_size:(cnt+1)*batch_size])
+        pg_inputs, pg_arities = pgec.encode_batch(test_trees[cnt*batch_size:(cnt+1)*batch_size])
         label_inputs = label_inputs.view(-1,batch_size,1).float()
         inputs, arities = inputs.cuda(), arities.cuda()
         label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
-        optimizer.zero_grad()
-        output = net.forward(inputs, arities)
-        loss = loss_function(output, label_inputs)
-        loss_total += loss.item()
-        loss.backward()
-        optimizer.step()
-#         if(i%100==0):
-#             print(f'epoch {each} batch {i} Loss: {loss}')
-    end = time()
-    total_time += (end-begin)
 
-    print(f'epoch {each} Total Losss: {loss_total/num_of_training_batch}')
-    for i in range(num_of_validation_batch):
-        net.train(False)
-        inputs, arities = ec.encode_batch(converted_trees[i*batch_size+batch_size*num_of_training_batch:(i+1)*batch_size+batch_size*num_of_training_batch])
-        label_inputs, label_arities = lec.encode_batch(trees[i*batch_size+batch_size*num_of_training_batch:(i+1)*batch_size+batch_size*num_of_training_batch])
-        label_inputs = label_inputs.view(-1,batch_size,1).float()
-        inputs, arities = inputs.cuda(), arities.cuda()
-        label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
-        optimizer.zero_grad()
         output = net.forward(inputs, arities)
-        loss = loss_function(output, label_inputs)
-        v_loss += loss.item()
-        #if(i%100==0):
-         #   print(f'epoch {each} batch {i} validation Loss: {loss}')       
-    print(f'epoch {each} Total Validation Losss: {v_loss/num_of_validation_batch}')
-
-# torch.save(net.state_dict(), '../model/treelstm_model')
+#         loss = loss_function(output, label_inputs)
+        for i in range(arities.size()[1]):
+#     print(i)
+            for j in range(arities.size()[0]):
+                if(arities[j][i]!=-1):
+                    operator.append(operators[list(inputs[j][i].cpu().numpy()).index(1)])
+                    all_result.append(output[j][i].cpu().numpy())
+                    label_all_result.append(label_inputs[j][i].cpu().numpy())
+                    pg_all.append(pg_inputs[j][i])
+                else:
+                    final_result.append(output[j-1][i].cpu().numpy())
+                    pg_final.append(pg_inputs[j-1][i])
+                    label_final_result.append(label_inputs[j-1][i].cpu().numpy())
+                    break
+                if(j==arities.size()[0]-1):
+                    final_result.append(output[j][i].cpu().numpy())
+                    pg_final.append(pg_inputs[j][i])
+                    label_final_result.append(label_inputs[j][i].cpu().numpy())

@@ -138,7 +138,7 @@ def padding_sentence(raw_sentences,test_data):
     for sentence in raw_sentences:
         if(len(sentence) > max_len):
             max_len = len(sentence)
-    print(max_len)
+    # print(max_len)
     padded_sentences = pad_sequences(test_data, maxlen=max_len, padding='post',dtype='float32')
     return padded_sentences
 
@@ -160,8 +160,9 @@ def leaf_embedded(plan,model_path,embedded_length=64):
 
     # load model
     model = load_model(model_path)
+    # model.summary()
     intermediate_layer_model = Model(inputs=model.input,
-                                    outputs=model.layers[4].output)
+                                    outputs=model.layers[3].output)
     intermediate_output = intermediate_layer_model.predict(padded_sentences)
     return intermediate_output
 
@@ -205,6 +206,7 @@ def extract_attributes(operator, operators,columns,line,feature_vec,leaf_embeddi
         feature_vec[15:79] = leaf_embedding[i]
     else:
         pass
+    # print(feature_vec)
 
 class Node(object):
     def __init__(self, data, parent=None):
@@ -226,11 +228,13 @@ class Node(object):
 def parse_tree(operators,columns,leaf_embedding,plan_path):
     scan_cnt = 0
     max_children = 0
+    plan_trees = []
     feature_len = 9+6+7+64
     with open(plan_path,'r') as f:
         lines = f.readlines()
     feature_vec = [0.0]*feature_len
     operator, in_operators = extract_operator(lines[0],operators)
+    # print("operator: ",operator)
     if not in_operators:
         operator, in_operators = extract_operator(lines[1],operators)
         start_cost, end_cost, rows, width, a_start_cost, a_end_cost, a_rows = extract_plan(
@@ -248,83 +252,86 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
         scan_cnt += 1
         root_tokens = feature_vec
         current_node = Node(root_tokens)
+        plan_trees.append(current_node)
     else:
         while("actual" not in lines[j] and "Plan" not in lines[j]):
             extract_attributes(operator, operators,columns, lines[j], feature_vec,leaf_embedding)
             j += 1
-        root_tokens = feature_vec  # 所有吗
-        current_node = Node(root_tokens)
-
-        spaces = 0
-        node_stack = []
-        i = j
-        while not lines[i].startswith("Planning time"):
-            line = lines[i]
-            i += 1
-            if line.startswith("Planning time") or line.startswith("Execution time"):
-                break
-            elif line.strip() == "":
-                break
-            elif ("->" not in line):
-                continue
-            else:
-                if line.index("->") < spaces:
-                    while line.index("->") < spaces:
-                        current_node, spaces = node_stack.pop()
-                if line.index("->") > spaces:
-                    line_copy = line
-                    feature_vec = [0.0]*feature_len
-                    start_cost, end_cost, rows, width, a_start_cost, a_end_cost, a_rows = extract_plan(
-                        line_copy)
-                    feature_vec[feature_len-7:feature_len] = [start_cost,
-                                                                end_cost, rows, width, a_start_cost, a_end_cost, a_rows]
-                    operator, in_operators = extract_operator(line_copy,operators)
-                    feature_vec[operators.index(operator)] = 1.0
-                    if(operator == "Seq Scan"):
+    root_tokens = feature_vec  # 所有吗
+    current_node = Node(root_tokens)
+    plan_trees.append(current_node)
+    spaces = 0
+    node_stack = []
+    i = j
+    while not lines[i].startswith("Planning time"):
+        line = lines[i]
+        i += 1
+        if line.startswith("Planning time") or line.startswith("Execution time"):
+            break
+        elif line.strip() == "":
+            break
+        elif ("->" not in line):
+            continue
+        else:
+            if line.index("->") < spaces:
+                while line.index("->") < spaces:
+                    current_node, spaces = node_stack.pop()
+            if line.index("->") > spaces:
+                line_copy = line
+                feature_vec = [0.0]*feature_len
+                start_cost, end_cost, rows, width, a_start_cost, a_end_cost, a_rows = extract_plan(
+                    line_copy)
+                feature_vec[feature_len-7:feature_len] = [start_cost,
+                                                            end_cost, rows, width, a_start_cost, a_end_cost, a_rows]
+                operator, in_operators = extract_operator(line_copy,operators)
+                feature_vec[operators.index(operator)] = 1.0
+                if(operator == "Seq Scan"):
+                    extract_attributes(
+                        operator,  operators, columns, line_copy, feature_vec,leaf_embedding, scan_cnt)
+                    scan_cnt += 1
+                else:
+                    j = 0
+                    while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
                         extract_attributes(
-                            operator,  operators, columns, line_copy, feature_vec,leaf_embedding, scan_cnt)
-                        scan_cnt += 1
-                    else:
-                        j = 0
-                        while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
-                            extract_attributes(
-                                operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
-                            j += 1
-                    tokens = feature_vec
-                    new_node = Node(tokens, parent=current_node)
-                    current_node.add_child(new_node)
-                    if len(current_node.children) > max_children:
-                        max_children = len(current_node.children)
-                    node_stack.append((current_node, spaces))
-                    current_node = new_node
-                    spaces = line.index("->")
-                elif line.index("->") == spaces:
-                    line_copy = line
-                    feature_vec = [0.0]*feature_len
-                    start_cost, end_cost, rows, width, a_start_cost, a_end_cost, a_rows = extract_plan(
-                        line_copy)
-                    feature_vec[feature_len-7:feature_len] = [start_cost,
-                                                                end_cost, rows, width, a_start_cost, a_end_cost, a_rows]
-                    operator, in_operators = extract_operator(line_copy,operators)
-                    feature_vec[operators.index(operator)] = 1.0
-                    if(operator == "Seq Scan"):
+                            operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
+                        j += 1
+                tokens = feature_vec
+                # print("token",tokens)
+                new_node = Node(tokens, parent=current_node)
+                current_node.add_child(new_node)
+                if len(current_node.children) > max_children:
+                    max_children = len(current_node.children)
+                node_stack.append((current_node, spaces))
+                current_node = new_node
+                spaces = line.index("->")
+            elif line.index("->") == spaces:
+                line_copy = line
+                feature_vec = [0.0]*feature_len
+                start_cost, end_cost, rows, width, a_start_cost, a_end_cost, a_rows = extract_plan(
+                    line_copy)
+                feature_vec[feature_len-7:feature_len] = [start_cost,
+                                                            end_cost, rows, width, a_start_cost, a_end_cost, a_rows]
+                operator, in_operators = extract_operator(line_copy,operators)
+                feature_vec[operators.index(operator)] = 1.0
+                if(operator == "Seq Scan"):
+                    extract_attributes(
+                        operator, operators, columns, line_copy, feature_vec,leaf_embedding, scan_cnt)
+                    scan_cnt += 1
+                else:
+                    j = 0
+                    while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
                         extract_attributes(
-                            operator, operators, columns, line_copy, feature_vec,leaf_embedding, scan_cnt)
-                        scan_cnt += 1
-                    else:
-                        j = 0
-                        while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
-                            extract_attributes(
-                                operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
-                            j += 1
-                    tokens = feature_vec
-                    new_node = Node(tokens, parent=node_stack[-1][0])
-                    node_stack[-1][0].add_child(new_node)
-                    if len(node_stack[-1][0].children) > max_children:
-                        max_children = len(node_stack[-1][0].children)
-                    current_node = new_node
-                    spaces = line.index("->")
-    return current_node, max_children  # a list of the roots nodes
+                            operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
+                        j += 1
+                tokens = feature_vec
+                new_node = Node(tokens, parent=node_stack[-1][0])
+                node_stack[-1][0].add_child(new_node)
+                if len(node_stack[-1][0].children) > max_children:
+                    max_children = len(node_stack[-1][0].children)
+                current_node = new_node
+                spaces = line.index("->")
+    # print("scan count: ",scan_cnt)
+    return plan_trees, max_children  # a list of the roots nodes
 
 def p2t(node):
     tree = {}
@@ -332,6 +339,7 @@ def p2t(node):
     operators_count = 9
     columns_count = 6
     scan_features = 64
+    # print("node data length: ",len(tmp))
     assert len(tmp) == operators_count + columns_count + 7 +scan_features 
     tree['features']= tmp[:operators_count + columns_count+scan_features]
     if(node.data[-1]!=0):
@@ -350,7 +358,7 @@ def tree_embedding(leaf_embedding,plan):
     columns = ['ci.movie_id', 't.id', 'mi_idx.movie_id', 'mi.movie_id', 'mc.movie_id', 'mk.movie_id']
 
     root_node, max_children = parse_tree(operators,columns,leaf_embedding,plan)
-    embedded_tree = p2t(root_node)
+    embedded_tree = p2t(root_node[0])
     return embedded_tree
 
 class LabelEncoder(object):
@@ -845,7 +853,7 @@ def predict(test_tree,treelstm_model_path):
     operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
               'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
     test_converted_tree = convert_tree(test_tree)
-
+    # print(test_converted_tree)
     ec = TreeEncoder(lambda x: x[0],lambda x: x[1])
     lec = LabelEncoder(lambda x: x['labels'],lambda x: x['children'])
     pgec = LabelEncoder(lambda x:x['pg'],lambda x:x['children'])
@@ -901,11 +909,20 @@ if __name__ == "__main__":
     treelstm_model_path = args.TreeLSTM_model_path
 
     leaf_embedding = leaf_embedded(plan,model_path=leaf_model_path)
+    # print("leaf embedding shape: ",np.shape(leaf_embedding))
 
     test_tree = tree_embedding(leaf_embedding,plan)
 
     all_result,pg_all,arities = predict(test_tree,treelstm_model_path)
 
+    # print(all_result)
+    # print(pg_all)
+    # print(arities)
+
+
+
     # TODO: map predictions with corresponding tree node
 
     # TODO: generate set card queries
+
+    # TODO: check label and model

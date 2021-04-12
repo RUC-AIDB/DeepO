@@ -250,9 +250,9 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
     if(operator == "Seq Scan"):
         extract_attributes(operator, operators,columns,lines[j], feature_vec,leaf_embedding, scan_cnt)
         scan_cnt += 1
-        root_tokens = feature_vec
-        current_node = Node(root_tokens)
-        plan_trees.append(current_node)
+        # root_tokens = feature_vec
+        # current_node = Node(root_tokens)
+        # plan_trees.append(current_node)
     else:
         while("actual" not in lines[j] and "Plan" not in lines[j]):
             extract_attributes(operator, operators,columns, lines[j], feature_vec,leaf_embedding)
@@ -332,6 +332,7 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
                 spaces = line.index("->")
     # print("scan count: ",scan_cnt)
     return plan_trees, max_children  # a list of the roots nodes
+
 
 def p2t(node):
     tree = {}
@@ -896,6 +897,107 @@ def predict(test_tree,treelstm_model_path):
 
     return all_result,pg_all,arities
 
+def parse_plan(operators,plan_path):
+    plan_trees = []
+    with open(plan_path,'r') as f:
+        lines = f.readlines()
+    operator, in_operators = extract_operator(lines[0],operators)
+    if not in_operators:
+        operator, in_operators = extract_operator(lines[1],operators)
+        j = 2
+    else:
+        j = 1
+    if(operator == "Seq Scan"):
+        pass
+    else:
+        while("actual" not in lines[j] and "Plan" not in lines[j]):
+            j += 1
+    current_node = Node(lines[j-1])
+    plan_trees.append(current_node)
+    spaces = 0
+    node_stack = []
+    i = j
+    while not lines[i].startswith("Planning time"):
+        line = lines[i]
+        i += 1
+        if line.startswith("Planning time") or line.startswith("Execution time"):
+            break
+        elif line.strip() == "":
+            break
+        elif ("->" not in line):
+            continue
+        else:
+            if line.index("->") < spaces:
+                while line.index("->") < spaces:
+                    current_node, spaces = node_stack.pop()
+            if line.index("->") > spaces:
+                line_copy = line
+                operator, in_operators = extract_operator(line_copy,operators)
+                if(operator == "Seq Scan"):
+                    pass
+                else:
+                    j = 0
+                    while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
+                        j += 1
+                tokens = line_copy
+                print("token",tokens)
+                new_node = Node(tokens, parent=current_node)
+                current_node.add_child(new_node)
+                node_stack.append((current_node, spaces))
+                current_node = new_node
+                spaces = line.index("->")
+            elif line.index("->") == spaces:
+                line_copy = line
+                operator, in_operators = extract_operator(line_copy,operators)
+                if(operator == "Seq Scan"):
+                    pass
+                else:
+                    j = 0
+                    while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
+                        j += 1
+                tokens = line_copy
+                print("token",tokens)
+                new_node = Node(tokens, parent=node_stack[-1][0])
+                node_stack[-1][0].add_child(new_node)
+                current_node = new_node
+                spaces = line.index("->")
+    # print("scan count: ",scan_cnt)
+    return plan_trees  # a list of the roots nodes
+
+def plan_tree_to_relations(node):
+    tree = {}
+    tmp = node.data
+    tree["line"] = tmp
+    tree['children'] = []
+    for children in node.children:
+        tree['children'].append(plan_tree_to_relations(children))
+    return tree
+
+def convert_tree_for_plan(father):
+    t = (father['line'])
+    # print(t)
+    tmp = [t]
+    tmp = tuple(tmp)
+    # print(tmp)
+    c = []
+    for child in father['children']:
+        c.append(tuple(convert_tree_for_plan(child)))
+    tmp += (c,)
+    return tmp
+
+
+def get_relations_in_plan(plan):
+    operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
+        'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
+    tree = parse_plan(operators,plan)
+    # print(tree)
+    tree_with_relations = plan_tree_to_relations(tree[0])
+    print("tree_with_relations: ",tree_with_relations)
+    # ec = TreeEncoder(lambda x: x[0],lambda x: x[1])
+    converted_tree = convert_tree_for_plan(tree_with_relations)
+    # inputs, arities = ec.encode_str([converted_tree])
+    return converted_tree
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cardinality Error Detection & Injection')
@@ -916,10 +1018,12 @@ if __name__ == "__main__":
     all_result,pg_all,arities = predict(test_tree,treelstm_model_path)
 
     # print(all_result)
-    # print(pg_all)
+    print(pg_all)
     # print(arities)
 
-
+    converted_tree = get_relations_in_plan(plan)
+    print("converted_tree: ",converted_tree[0])
+    print(len(converted_tree))
 
     # TODO: map predictions with corresponding tree node
 

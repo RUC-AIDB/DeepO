@@ -16,8 +16,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import csv
 import torch
 from torch import nn
-
-from sklearn.preprocessing import LabelEncoder
+from sklearn import preprocessing
 
 def extract_plan(line):
     data = line.replace("->","").lstrip().split("  ")[-1].split(" ")
@@ -64,15 +63,12 @@ def is_not_number(s):
         pass
     return True
 
-def get_data_and_label(column_min_max_vals,plan_path=None,plan=None):
+def get_data_and_label(column_min_max_vals,plan_path):
     sentences = []
     rows = []
     pg = []
-    if(plan_path!=None):
-        with open(plan_path,'r') as f:
-            plan = f.readlines()
-    elif(plan!=None):
-        pass
+    with open(plan_path,'r') as f:
+        plan = f.readlines()
     for i in range(len(plan)-2):
         if("Seq Scan" in plan[i]):
             _start_cost,_end_cost,_rows,_width,_a_start_cost_,_a_end_cost,_a_rows = extract_plan(plan[i])
@@ -129,7 +125,7 @@ def get_vocabulary_encoding():
     vocabulary = ['movie_info_idx', 'Filter', 'info_type_id', '>', 'title', 'kind_id', '=', 'production_year', 'movie_keyword', 'keyword_id', 'cast_info', 'person_id', 'AND', 'role_id', 'mk', 't', '<', 'movie_info', 'mi', 'movie_companies', 'mc', 'ci', 'company_id', 'company_type_id', 'mi_idx']
     vocab_size = len(vocabulary)
     _vocabulary = np.array(vocabulary)
-    label_encoder = LabelEncoder()
+    label_encoder = preprocessing.LabelEncoder()
     integer_encoded = label_encoder.fit_transform(_vocabulary)
     encoded = to_categorical(integer_encoded)
     vocab_dict = {}
@@ -150,7 +146,7 @@ def leaf_embedded(plan,model_path,embedded_length=64):
     """embedding leaf node in plan into vector
 
     Args:
-        plan ([path or strubg]): # plan can be directly a plan string or path of a plan file
+        plan ([path]): path of a plan file
         model_path (str, optional): [description]. Defaults to "/home/sunluming/deepO/Mine_total/final/embedding_model.h5".
         embedded_length (int, optional): [description]. Defaults to 64.
     """
@@ -227,16 +223,12 @@ class Node(object):
         return tab_spaces + "+-- Node: "+ str.join("|", self.data) + "\n"\
                 + str.join("\n", [child.__str__(tabs+2) for child in self.children])
 
-def parse_tree(operators,columns,leaf_embedding,plan_path=None,plan=None):
+def parse_tree(operators,columns,leaf_embedding,plan_path):
     scan_cnt = 0
     max_children = 0
     feature_len = 9+6+7+64
-    if(plan_path!=None):
-        with open(plan_path,'r') as f:
-            lines = f.readlines()
-    elif(plan!=None):
-        pass
-
+    with open(plan_path,'r') as f:
+        lines = f.readlines()
     feature_vec = [0.0]*feature_len
     operator, in_operators = extract_operator(lines[0],operators)
     if not in_operators:
@@ -846,9 +838,9 @@ def convert_tree(father):
     return tmp
 
 def predict(test_tree,treelstm_model_path):
-    net = Tree(79, 256, branching_factor=2).cuda()
+    net = Tree(79, 256, branching_factor=2)
     
-    net.load_state_dict(torch.load(treelstm_model_path))
+    net.load_state_dict(torch.load(treelstm_model_path,map_location=torch.device('cpu')))
 
     operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
               'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
@@ -873,8 +865,8 @@ def predict(test_tree,treelstm_model_path):
             label_inputs, label_arities = lec.encode_batch([test_tree])
             pg_inputs, pg_arities = pgec.encode_batch([test_tree])
             label_inputs = label_inputs.view(-1,batch_size,1).float()
-            inputs, arities = inputs.cuda(), arities.cuda()
-            label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
+            # inputs, arities = inputs.cuda(), arities.cuda()
+            # label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
 
             output = net.forward(inputs, arities)
             for i in range(arities.size()[1]):
@@ -899,9 +891,9 @@ def predict(test_tree,treelstm_model_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cardinality Error Detection & Injection')
-    parser.add_argument("--plan",type=str,help="plan (in list of string format) or path of plan")
-    parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="/home/sunluming/deepO/Mine_total/final/embedding_model.h5")
-    parser.add_argument("--TreeLSTM-model-path",type=str,help="model path for TreeLSTM",default="/home/sunluming/deepO/Mine_total/final/treelstm_batch_10000")
+    parser.add_argument("--plan",type=str,help="plan (in list of string format) or path of plan",default="../data/example_plan.txt")
+    parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="../model/embedding_model.h5")
+    parser.add_argument("--TreeLSTM-model-path",type=str,help="model path for TreeLSTM",default="../model/treelstm_model")
     args = parser.parse_args()
 
     plan = args.plan

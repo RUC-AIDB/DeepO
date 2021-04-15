@@ -873,8 +873,8 @@ def predict(test_tree,treelstm_model_path):
             inputs, arities = ec.encode_batch([test_converted_tree])
             label_inputs, label_arities = lec.encode_batch([test_tree])
             pg_inputs, pg_arities = pgec.encode_batch([test_tree])
-            print("pg_inputs: ",pg_inputs)
-            print("pg_arities: ",pg_arities)
+            # print("pg_inputs: ",pg_inputs)
+            # print("pg_arities: ",pg_arities)
             label_inputs = label_inputs.view(-1,batch_size,1).float()
             # inputs, arities = inputs.cuda(), arities.cuda()
             # label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
@@ -886,18 +886,18 @@ def predict(test_tree,treelstm_model_path):
                         operator.append(operators[list(inputs[j][i].cpu().numpy()).index(1)])
                         all_result.append(output[j][i].cpu().numpy())
                         label_all_result.append(label_inputs[j][i].cpu().numpy())
-                        pg_all.append(pg_inputs[j][i])
+                        pg_all.append(pg_inputs[j][i].cpu().numpy())
                     else:
                         final_result.append(output[j-1][i].cpu().numpy())
-                        pg_final.append(pg_inputs[j-1][i])
+                        pg_final.append(pg_inputs[j-1][i].cpu().numpy())
                         label_final_result.append(label_inputs[j-1][i].cpu().numpy())
                         break
                     if(j==arities.size()[0]-1):
                         final_result.append(output[j][i].cpu().numpy())
-                        pg_final.append(pg_inputs[j][i])
+                        pg_final.append(pg_inputs[j][i].cpu().numpy())
                         label_final_result.append(label_inputs[j][i].cpu().numpy())
 
-    return all_result,pg_all,arities
+    return np.exp(np.array(all_result).flatten()),np.exp(np.array(pg_all).flatten()),np.exp(np.array(label_all_result).flatten()),arities
 
 def parse_plan(operators,plan_path):
     plan_trees = []
@@ -958,7 +958,7 @@ def parse_plan(operators,plan_path):
                     while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
                         j += 1
                 tokens = line_copy
-                print("token",tokens)
+                # print("token",tokens)
                 new_node = Node(tokens, parent=node_stack[-1][0])
                 node_stack[-1][0].add_child(new_node)
                 current_node = new_node
@@ -1024,13 +1024,28 @@ def extract_list(input):
             flatten.append(i)
     return flatten
 
+def Q_error(pred,label):
+    qerror = []
+    for i in range(len(pred)):
+        if pred[i]==0 and float(label[i])==0:
+            qerror.append(1)
+        elif pred[i]==0:
+            qerror.append(label[i])
+        elif label[i]==0:
+            qerror.append(pred[i])
+        elif pred[i] > float(label[i]):
+            qerror.append(float(pred[i]) / float(label[i]))
+        else:
+            qerror.append(float(label[i]) / float(pred[i]))
+    return np.array(qerror)
+
 def get_relations_in_plan(plan):
     operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
         'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
     tree = parse_plan(operators,plan)
     # print(tree)
     tree_with_relations = plan_tree_to_relations(tree[0])
-    print("tree_with_relations: ",tree_with_relations)
+    # print("tree_with_relations: ",tree_with_relations)
     # ec = TreeEncoder(lambda x: x[0],lambda x: x[1])
     # converted_tree = convert_tree_for_plan(tree_with_relations)
     # inputs, arities = ec.encode_str([converted_tree])
@@ -1038,9 +1053,49 @@ def get_relations_in_plan(plan):
     inputs, arities = operator_ec.encode(tree_with_relations)
     inputs_flatten = extract_list(inputs)
     arities_flatten = extract_list(arities)
-    print("inputs flatten: ", inputs_flatten)
-    print("arities flatten: ",arities_flatten)
+    # print("inputs flatten: ", inputs_flatten)
+    # print("arities flatten: ",arities_flatten)
     return inputs_flatten,arities_flatten
+
+def find_bad_estimation(predicted,pg,tree_node,arities,leaf=False,threshold=10):
+    """find pg estimation with qerror large than threshold
+
+    Args:
+        predicted ([type]): [description]
+        pg ([type]): [description]
+        tree_node ([type]): [description]
+        leaf (bool, optional): [description]. Defaults to False.
+        threshold (int, optional): [description]. Defaults to 10.
+    """
+    # print(predicted)
+    # print(pg)
+    q_error = Q_error(predicted,pg)
+    print((q_error>threshold))
+    print(arities!=0)
+
+    if(leaf==True):
+        condition = q_error>threshold
+    else:
+        condition = (q_error>threshold) & (arities!=0)
+    bad_estimation = []
+    for i,c in enumerate(condition):
+        if(c):
+            bad_estimation.append(tree_node[i])
+    # print("bad estimation: ",bad_estimation)
+    return bad_estimation
+
+def generate_sql(bad_estimation):
+    operators = ['Merge Join', 'Seq Scan', 'Nested Loop', 'Hash Join']
+    vocabulary = [ 'mk', 't', 'mi', 'mc', 'ci', 'mi_idx']
+
+    for each in bad_estimation:
+        if("Seq Scan" in each):
+            table = each.split("  (cost")[0].split(" ")[-1]
+        elif("Join" in each or "Nested Loop" in each):
+            
+
+
+
 
 if __name__ == "__main__":
 
@@ -1059,15 +1114,13 @@ if __name__ == "__main__":
 
     test_tree = tree_embedding(leaf_embedding,plan)
 
-    all_result,pg_all,arities = predict(test_tree,treelstm_model_path)
+    predicted_all, pg_all, label_all, arities = predict(test_tree,treelstm_model_path)
 
-    # print(all_result)
-    print(pg_all)
-    # print(arities)
+    #map predictions with corresponding tree node
+    tree_node, tree_arities = get_relations_in_plan(plan)
 
-    inputs,arities = get_relations_in_plan(plan)
-
-    # TODO: map predictions with corresponding tree node
+    # find bad_estimation
+    bad_estimation = find_bad_estimation(predicted_all,pg_all,tree_node,np.array(tree_arities))
 
     # TODO: generate set card queries
 

@@ -873,6 +873,8 @@ def predict(test_tree,treelstm_model_path):
             inputs, arities = ec.encode_batch([test_converted_tree])
             label_inputs, label_arities = lec.encode_batch([test_tree])
             pg_inputs, pg_arities = pgec.encode_batch([test_tree])
+            print("pg_inputs: ",pg_inputs)
+            print("pg_arities: ",pg_arities)
             label_inputs = label_inputs.view(-1,batch_size,1).float()
             # inputs, arities = inputs.cuda(), arities.cuda()
             # label_inputs,label_arities = label_inputs.cuda(),label_arities.cuda()
@@ -940,7 +942,7 @@ def parse_plan(operators,plan_path):
                     while("actual" not in lines[i+j] and "Plan" not in lines[i+j]):
                         j += 1
                 tokens = line_copy
-                print("token",tokens)
+                # print("token",tokens)
                 new_node = Node(tokens, parent=current_node)
                 current_node.add_child(new_node)
                 node_stack.append((current_node, spaces))
@@ -973,6 +975,33 @@ def plan_tree_to_relations(node):
         tree['children'].append(plan_tree_to_relations(children))
     return tree
 
+class OperatorEncoder(object):
+    def __init__(self, value_fn, children_fn):
+        super(OperatorEncoder, self).__init__()
+        self.value_fn = value_fn
+        self.children_fn = children_fn
+
+    def encode(self, tree):
+        children = self.children_fn(tree)
+        n = len(children)
+        value = self.value_fn(tree)
+
+        if children:
+            lower_values, lower_arities = \
+                zip(* [self.encode(c) for c in reversed(children)])
+
+            lower_values = list(lower_values)
+            lower_arities = list(lower_arities)
+        else:
+            lower_values = []
+            lower_arities = []
+        lower_values.append(value)
+        lower_arities.append(([len(children)]))
+        return lower_values, lower_arities
+        # lower_values.append(value.unsqueeze(0))
+        # lower_arities.append(torch.LongTensor([len(children)]))
+        # return torch.cat(lower_values), torch.cat(lower_arities)
+
 def convert_tree_for_plan(father):
     t = (father['line'])
     # print(t)
@@ -985,6 +1014,15 @@ def convert_tree_for_plan(father):
     tmp += (c,)
     return tmp
 
+def extract_list(input):
+    flatten = []
+    for i in input:
+        # print("extract: ",i)
+        if(isinstance(i,list)):
+            flatten.extend(extract_list(i))
+        else:
+            flatten.append(i)
+    return flatten
 
 def get_relations_in_plan(plan):
     operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan',\
@@ -994,9 +1032,15 @@ def get_relations_in_plan(plan):
     tree_with_relations = plan_tree_to_relations(tree[0])
     print("tree_with_relations: ",tree_with_relations)
     # ec = TreeEncoder(lambda x: x[0],lambda x: x[1])
-    converted_tree = convert_tree_for_plan(tree_with_relations)
+    # converted_tree = convert_tree_for_plan(tree_with_relations)
     # inputs, arities = ec.encode_str([converted_tree])
-    return converted_tree
+    operator_ec = OperatorEncoder(lambda x:x['line'],lambda x: x['children'])
+    inputs, arities = operator_ec.encode(tree_with_relations)
+    inputs_flatten = extract_list(inputs)
+    arities_flatten = extract_list(arities)
+    print("inputs flatten: ", inputs_flatten)
+    print("arities flatten: ",arities_flatten)
+    return inputs_flatten,arities_flatten
 
 if __name__ == "__main__":
 
@@ -1021,9 +1065,7 @@ if __name__ == "__main__":
     print(pg_all)
     # print(arities)
 
-    converted_tree = get_relations_in_plan(plan)
-    print("converted_tree: ",converted_tree[0])
-    print(len(converted_tree))
+    inputs,arities = get_relations_in_plan(plan)
 
     # TODO: map predictions with corresponding tree node
 

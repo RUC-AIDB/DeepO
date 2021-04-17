@@ -1148,11 +1148,11 @@ def write_file(set_queries,raw_query,file_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cardinality Error Detection & Injection')
-    parser.add_argument("--plan",type=str,help="plan (in list of string format) or path of plan",default="../data/example_plan.txt")
+    parser.add_argument("--plan",type=str,help="path of plan needed to be optimized",default="../data/example_plan.txt")
     parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="../model/embedding_model.h5")
     parser.add_argument("--TreeLSTM-model-path",type=str,help="model path for TreeLSTM",default="../model/treelstm_model")
     parser.add_argument("--save-path",type=str,help="file path for saving cardinality injecting queries",default="../data/injection_queries.txt")
-    parser.add_argument("--query",type=str,help="file path or raw query starting with explain analyse...",default="explain analyse select * from test;")
+    parser.add_argument("--query",type=str,help="file path or raw query starting with 'explain analyse...'",default="explain analyse select * from test;")
     args = parser.parse_args()
 
     plan = args.plan

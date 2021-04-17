@@ -1082,17 +1082,65 @@ def find_bad_estimation(predicted,pg,tree_node,arities,leaf=False,threshold=10):
         if(c):
             bad_estimation.append(tree_node[i])
     # print("bad estimation: ",bad_estimation)
-    return bad_estimation
+    return bad_estimation, condition
 
-def generate_sql(bad_estimation):
+def construct_sql(table,card):
+    return "set cardinality '{}' = {};\n".format(table,card)
+
+def generate_sql(tree_node,predicted,bad_position,arities):
     operators = ['Merge Join', 'Seq Scan', 'Nested Loop', 'Hash Join']
     vocabulary = [ 'mk', 't', 'mi', 'mc', 'ci', 'mi_idx']
 
-    for each in bad_estimation:
-        if("Seq Scan" in each):
-            table = each.split("  (cost")[0].split(" ")[-1]
-        elif("Join" in each or "Nested Loop" in each):
-            
+    tables = []
+    set_cards = []
+    ope_cnt = -1
+    for pos in range(len(bad_position))[::-1]:
+        if(bad_position[pos]==True):
+            if(arities[pos] ==0):
+                ope = tree_node[pos]
+                table = ope.split("  (cost")[0].split(" ")[-1]
+                tables.append(table)
+                set_cards.append(predicted[pos])
+                ope_cnt -= 1
+            elif(arities[pos]==1):
+                continue
+            else:
+                # find leaf node of the join
+                children = 0
+                COND = 2
+                tmp_pos = pos
+                joined_tables = []
+                while(children<COND):
+                    tmp_pos -= 1
+                    if(arities[tmp_pos]==0):
+                        children += 1
+                        if("Seq Scan" in tree_node[tmp_pos]):
+                            subtable = tree_node[tmp_pos].split("  (cost")[0].split(" ")[-1]
+                        else:
+                            subtable = "t"
+                        joined_tables.append(subtable)
+                    elif(arities[tmp_pos]==1):
+                        continue
+                    else:
+                        COND += 1
+                tables.append(",".join(joined_tables))
+                set_cards.append(predicted[pos])
+    print(tables)
+    print(set_cards)
+    queries = []
+    for table,card in zip(tables,set_cards):
+        queries.append(construct_sql(table,card))
+    print(queries)
+    return queries
+
+def write_file(set_queries,raw_query,file_path):
+    with open(file_path,"w") as f:
+        f.writelines(set_queries)
+        f.writelines(raw_query)
+        f.writelines("\nreset cardinalities;")
+
+
+
 
 
 
@@ -1103,11 +1151,19 @@ if __name__ == "__main__":
     parser.add_argument("--plan",type=str,help="plan (in list of string format) or path of plan",default="../data/example_plan.txt")
     parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="../model/embedding_model.h5")
     parser.add_argument("--TreeLSTM-model-path",type=str,help="model path for TreeLSTM",default="../model/treelstm_model")
+    parser.add_argument("--save-path",type=str,help="file path for saving cardinality injecting queries",default="../data/injection_queries.txt")
+    parser.add_argument("--query",type=str,help="file path or raw query starting with explain analyse...",default="explain analyse select * from test;")
     args = parser.parse_args()
 
     plan = args.plan
     leaf_model_path = args.leaf_embedding_path
     treelstm_model_path = args.TreeLSTM_model_path
+    file_path = args.save_path
+    try:
+        with open(args.query,"r") as f:
+            raw_query = f.readlines()
+    except:
+        raw_query = args.query
 
     leaf_embedding = leaf_embedded(plan,model_path=leaf_model_path)
     # print("leaf embedding shape: ",np.shape(leaf_embedding))
@@ -1120,8 +1176,10 @@ if __name__ == "__main__":
     tree_node, tree_arities = get_relations_in_plan(plan)
 
     # find bad_estimation
-    bad_estimation = find_bad_estimation(predicted_all,pg_all,tree_node,np.array(tree_arities))
+    bad_estimation, bad_position = find_bad_estimation(predicted_all,pg_all,tree_node,np.array(tree_arities))
 
-    # TODO: generate set card queries
+    # generate set card queries
+    set_queries = generate_sql(tree_node,predicted_all,bad_position,tree_arities)
 
+    write_file(set_queries,raw_query,file_path)
     # TODO: check label and model

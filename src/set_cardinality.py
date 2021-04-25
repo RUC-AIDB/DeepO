@@ -1118,7 +1118,7 @@ def generate_sql(tree_node,predicted,bad_position,arities):
                     else:
                         COND += 1
                 tables.append(",".join(joined_tables))
-                set_cards.append(predicted[pos])
+                set_cards.append(int(predicted[pos]))
     print(tables)
     print(set_cards)
     queries = []

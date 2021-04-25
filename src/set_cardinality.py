@@ -133,12 +133,7 @@ def get_vocabulary_encoding():
         vocab_dict[v] = np.reshape(np.array(e),(1,vocab_size))
     return vocab_dict
 
-def padding_sentence(raw_sentences,test_data):
-    max_len = 0
-    for sentence in raw_sentences:
-        if(len(sentence) > max_len):
-            max_len = len(sentence)
-    # print(max_len)
+def padding_sentence(raw_sentences,test_data,max_len=9):
     padded_sentences = pad_sequences(test_data, maxlen=max_len, padding='post',dtype='float32')
     return padded_sentences
 
@@ -157,7 +152,6 @@ def leaf_embedded(plan,model_path,embedded_length=64):
     test_sentences,test_rows,test_pg = get_data_and_label(column_min_max_vals,plan)
     test_data,test_label = prepare_data_and_label(test_sentences,test_rows,vocab_dict,len(vocab_dict))
     padded_sentences = padding_sentence(test_sentences,test_data)
-
     # load model
     model = load_model(model_path)
     # model.summary()
@@ -1148,7 +1142,7 @@ def write_file(set_queries,raw_query,file_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cardinality Error Detection & Injection')
-    parser.add_argument("--plan",type=str,help="path of plan needed to be optimized",default="../data/example_plan.txt")
+    parser.add_argument("--plan",type=str,help="path of plan needed to be optimized",default="../data/example2.txt")
     parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="../model/embedding_model.h5")
     parser.add_argument("--TreeLSTM-model-path",type=str,help="model path for TreeLSTM",default="../model/treelstm_model")
     parser.add_argument("--save-path",type=str,help="file path for saving cardinality injecting queries",default="../data/injection_queries.txt")

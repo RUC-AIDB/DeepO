@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 
 scan_features_path = '../data/*.npy'
-folder_name='../data/JOB/job-light/'
+folder_name='../data/JOB//'
 # scan feature length: 64
 
 

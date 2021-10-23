@@ -1,0 +1,12 @@
+Merge Join  (cost=3.67..87732.43 rows=901343 width=168) (actual time=0.017..2352.506 rows=901343 loops=1)
+  Output: aka_name.id, aka_name.person_id, aka_name.name, aka_name.imdb_index, aka_name.name_pcode_cf, aka_name.name_pcode_nf, aka_name.surname_pcode, aka_name.md5sum, title.id, title.title, title.imdb_index, title.kind_id, title.production_year, title.imdb_id, title.phonetic_code, title.episode_of_id, title.season_nr, title.episode_nr, title.series_years, title.md5sum
+  Merge Cond: (aka_name.id = title.id)
+  Buffers: shared hit=887597 read=31036
+  ->  Index Scan using aka_name_pkey on public.aka_name  (cost=0.42..34815.57 rows=901343 width=74) (actual time=0.008..413.918 rows=901343 loops=1)
+        Output: aka_name.id, aka_name.person_id, aka_name.name, aka_name.imdb_index, aka_name.name_pcode_cf, aka_name.name_pcode_nf, aka_name.surname_pcode, aka_name.md5sum
+        Buffers: shared hit=672 read=13857
+  ->  Index Scan using title_pkey on public.title  (cost=0.43..110300.97 rows=2528183 width=94) (actual time=0.004..976.320 rows=901344 loops=1)
+        Output: title.id, title.title, title.imdb_index, title.kind_id, title.production_year, title.imdb_id, title.phonetic_code, title.episode_of_id, title.season_nr, title.episode_nr, title.series_years, title.md5sum
+        Buffers: shared hit=886925 read=17179
+Planning time: 0.916 ms
+Execution time: 2453.954 ms

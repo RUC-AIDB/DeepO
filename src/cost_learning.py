@@ -12,12 +12,18 @@ from blitz.utils import variational_estimator
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from joblib import dump, load
 
 # %%
 
 with open("../data/job-cardinality-sequence.pkl","rb") as f:
     sequences = pickle.load(f)
 cost_label = np.load("../data/cost_label.npy").reshape(-1,1)
+print("Data loaded.")
+# %%
+sc = StandardScaler()
+cost_label = sc.fit_transform(cost_label)
+dump(sc, '../model/std_scaler.bin', compress=True)
 # %%
 max_length = 0
 for sequence in sequences:
@@ -67,7 +73,7 @@ class NN(nn.Module):
 net = NN()
 net = net.float()
 criterion = nn.MSELoss()
-optimizer = optim.Adam(net.parameters(), lr=0.001)
+optimizer = optim.Adam(net.parameters(), lr=0.0001)
 # %%
 iteration = 0
 for epoch in range(10):
@@ -88,3 +94,4 @@ for epoch in range(10):
             loss_test = criterion(preds_test, y_test)
             print("Iteration: {} Val-loss: {:.4f}".format(str(iteration), loss_test))
 # %%
+torch.save(net,"../model/cost_model")

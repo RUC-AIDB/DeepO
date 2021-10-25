@@ -1,5 +1,4 @@
 .vscode
 data/*
 model/*
-src/hint_generationg.py
 src/__pycache__/get_plan.cpython-37.pyc

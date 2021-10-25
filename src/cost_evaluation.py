@@ -120,4 +120,4 @@ for idx in range(len(X_test)):
 print(cnt/len(X_test))
 
 # %%
-# 63608% in range
+# 63.608% in range

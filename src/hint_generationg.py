@@ -105,7 +105,7 @@ def generate_hint_queries(query_idx):
         query = "LOAD 'pg_hint_plan';\
             /*+ {} */ ".format(each) + sql + ";"
         queries.append(query)
-    return queries
+    return queries, sql+";"
 # %%
 # for i in range(len(tables)):
 #     i = 9
@@ -126,11 +126,20 @@ def generate_hint_queries(query_idx):
 #     break
 # %%
 query_idx = 9
-queries_with_hint = generate_hint_queries(query_idx)
+queries_with_hint, sql = generate_hint_queries(query_idx)
 os.makedirs("../data/plan/{}".format(query_idx), mode=0o777, exist_ok=True)
+os.makedirs("../data/SQL/".format(query_idx), mode=0o777, exist_ok=True)
+os.makedirs("../data/SQL_with_hint/".format(query_idx), mode=0o777, exist_ok=True)
+
+with open("../data/SQL/{}".format(query_idx),"w") as f:
+    f.writelines(sql)
+
+with open("../data/SQL_with_hint/{}".format(query_idx),"w") as f:
+    f.writelines("\n".join(queries_with_hint))
+
 
 for idx,query in enumerate(queries_with_hint):
     plan = get_query_plan(query,save_path="../data/plan/{}/{}".format(query_idx,idx))
     print(plan)
-    # break
+    break
 # %%

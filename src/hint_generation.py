@@ -125,9 +125,21 @@ def generate_join_order_hins(tables):
     return join_orders
 # %%
 def construct_sql(table, join, predicates):
-    sql = "explain select count(*) from {} where {} and {}"
     tables = ", ".join(table)
-    joins = " and ".join(join)
+    print(join)
+    print(predicates)
+    if(join!=[""] and predicates!=[""]):
+        joins = " and ".join(join)
+        sql = "explain select count(*) from {} where {} and {}"
+    elif(join!=[""] and predicates==[""]):
+        joins = " and ".join(join)
+        sql = "explain select count(*) from {} where {} {}"
+    elif(join==[""] and predicates!=[""]):
+        joins = ""
+        sql = "explain select count(*) from {} where {} {}"
+    else:
+        joins = ""
+        sql = "explain select count(*) from {} {} {}"
     l = []
     for n in range(len(predicates)//3):
         l.append(' '.join(predicates[n*3:n*3+3]))
@@ -169,22 +181,23 @@ def generate_hint_queries(query_idx):
 #         print(query)
 #     break
 # %%
-query_idx = 9
-queries_with_hint, sql = generate_hint_queries(query_idx)
-os.makedirs("../data/plan/{}".format(query_idx), mode=0o777, exist_ok=True)
-os.makedirs("../data/SQL/".format(query_idx), mode=0o777, exist_ok=True)
-os.makedirs("../data/SQL_with_hint/".format(query_idx), mode=0o777, exist_ok=True)
+for query_idx in tqdm(range(0,20)):
+    # query_idx = 9
+    queries_with_hint, sql = generate_hint_queries(query_idx)
+    os.makedirs("../data/plan/{}".format(query_idx), mode=0o777, exist_ok=True)
+    os.makedirs("../data/SQL/".format(query_idx), mode=0o777, exist_ok=True)
+    os.makedirs("../data/SQL_with_hint/".format(query_idx), mode=0o777, exist_ok=True)
 
-with open("../data/SQL/{}".format(query_idx),"w") as f:
-    f.writelines(sql)
+    with open("../data/SQL/{}".format(query_idx),"w") as f:
+        f.writelines(sql)
 
-with open("../data/SQL_with_hint/{}".format(query_idx),"w") as f:
-    f.writelines("\n".join(queries_with_hint))
+    with open("../data/SQL_with_hint/{}".format(query_idx),"w") as f:
+        f.writelines("\n".join(queries_with_hint))
 
 
-for idx,query in enumerate(tqdm(queries_with_hint)):
-    plan = get_query_plan(query,save_path="../data/plan/{}/{}".format(query_idx,idx))
-    
+    for idx,query in enumerate(tqdm(queries_with_hint)):
+        plan = get_query_plan(query,save_path="../data/plan/{}/{}".format(query_idx,idx))
+        
     # print(plan)
     # break
 # %%

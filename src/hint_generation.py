@@ -8,6 +8,7 @@ import os
 import numpy as np
 import copy
 from itertools import permutations
+from tqdm import tqdm
 from get_plan import get_query_plan
 # %%
 def load_data(file_name):
@@ -181,8 +182,9 @@ with open("../data/SQL_with_hint/{}".format(query_idx),"w") as f:
     f.writelines("\n".join(queries_with_hint))
 
 
-for idx,query in enumerate(queries_with_hint):
+for idx,query in enumerate(tqdm(queries_with_hint)):
     plan = get_query_plan(query,save_path="../data/plan/{}/{}".format(query_idx,idx))
-    print(plan)
-    break
+    
+    # print(plan)
+    # break
 # %%

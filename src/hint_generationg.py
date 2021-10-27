@@ -6,6 +6,7 @@
 import csv
 import os
 import numpy as np
+import copy
 from itertools import permutations
 from get_plan import get_query_plan
 # %%
@@ -72,12 +73,54 @@ def generate_join_method_hints(tables):
     candidates = [" ".join(x) for x in cartesian(hint_candidate, 'object')]
     return candidates
 # %%
+def add_one_rel(cur, join_tables):
+    extended_order = []
+    for table in join_tables:
+        if(table not in cur):
+            # print(cur)
+            # print(table)
+
+            tmp = ["("]
+            tmp.extend(cur)
+            tmp.append(table)
+            tmp.append(")")
+            extended_order.append(tmp)
+
+            tmp = ["("]
+            tmp.append(table)            
+            tmp.extend(cur)
+            tmp.append(")")
+
+            extended_order.append(tmp)
+            # print(extended_order)
+            # break
+        else:
+            continue
+    return extended_order
+   
+
+
 def generate_join_order_hins(tables):
     if(len(tables)==1):
         return [""]
     join_tables = [x.split(" ")[1] for x in tables]
-    orders = list(permutations(join_tables, len(join_tables)))
-    join_orders = ["Leading ({})".format(" ".join(each)) for each in orders]
+    num_tables = len(tables)
+    str_order_length = 3*num_tables-2
+    join_orders = []
+    starter = copy.deepcopy(join_tables)
+    stack = [[each] for each in starter]
+    while(len(stack)!=0):
+        cur = stack.pop(0)
+        if(len(cur)<str_order_length):
+            extended_orders = add_one_rel(cur, join_tables)
+            stack.extend(extended_orders)
+        else:
+            join_orders.append(cur)
+    str_join_orders = [" ".join(each) for each in join_orders]
+    # print(str_join_orders)
+    str_join_orders = set(str_join_orders)
+    join_orders = ["Leading ({})".format(" ".join(each)) for each in str_join_orders]
+    # print(len(join_orders))
     return join_orders
 # %%
 def construct_sql(table, join, predicates):

@@ -119,8 +119,8 @@ def generate_join_order_hins(tables):
     str_join_orders = [" ".join(each) for each in join_orders]
     # print(str_join_orders)
     str_join_orders = set(str_join_orders)
-    join_orders = ["Leading ({})".format(" ".join(each)) for each in str_join_orders]
-    # print(len(join_orders))
+    join_orders = ["Leading ({})".format(each) for each in str_join_orders]
+    # print(join_orders)
     return join_orders
 # %%
 def construct_sql(table, join, predicates):

@@ -1,4 +1,4 @@
-name: demo
+name: deepo
 channels:
   - conda-forge
   - defaults
@@ -151,5 +151,4 @@ dependencies:
     - urllib3==1.26.7
     - werkzeug==2.0.2
     - wrapt==1.12.1
-prefix: /home/sunluming/anaconda3/envs/demo
 

@@ -34,7 +34,7 @@ DeepO is a learning-based query optimizer that offers  high-quality and fine-gra
     # evaluate the learning performance
     python cost_evaluation.py
     ```
-- Use following command to estimate cost and optimize new queries.
+- Use following commands to estimate cost and optimize new queries.
     ```
     python cost_estimation.py
     python hint_generation.py

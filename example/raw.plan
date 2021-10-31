@@ -1,0 +1,29 @@
+
+job=# explain analyse SELECT * FROM title t,movie_companies mc,cast_info ci,movie_keyword mk WHERE t.id=mc.movie_id AND t.id=ci.movie_id AND t.id=mk.movie_id AND mc.company_type_id=2 AND ci.role_id=10 AND mk.keyword_id=4030;
+                                                                             QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=219888.14..942318.98 rows=223 width=188) (actual time=7660.235..9159.697 rows=109566 loops=1)
+   Hash Cond: (ci.movie_id = t.id)
+   ->  Seq Scan on cast_info ci  (cost=0.00..706171.20 rows=4335309 width=42) (actual time=5786.776..6859.746 rows=4323018 loops=1)
+         Filter: (role_id = 10)
+         Rows Removed by Filter: 31921326
+   ->  Hash  (cost=219886.52..219886.52 rows=130 width=146) (actual time=1873.306..1873.310 rows=3753 loops=1)
+         Buckets: 4096 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 574kB
+         ->  Hash Join  (cost=149116.67..219886.52 rows=130 width=146) (actual time=1344.106..1871.366 rows=3753 loops=1)
+               Hash Cond: (t.id = mc.movie_id)
+               ->  Seq Scan on title t  (cost=0.00..61282.00 rows=2528400 width=94) (actual time=0.011..284.732 rows=2528312 loops=1)
+               ->  Hash  (cost=149108.73..149108.73 rows=635 width=52) (actual time=1343.322..1343.324 rows=3753 loops=1)
+                     Buckets: 4096 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 281kB
+                     ->  Hash Join  (cost=68097.10..149108.73 rows=635 width=52) (actual time=724.819..1341.810 rows=3753 loops=1)
+                           Hash Cond: (mk.movie_id = mc.movie_id)
+                           ->  Seq Scan on movie_keyword mk  (cost=0.00..81003.12 rows=246 width=12) (actual time=3.707..622.275 rows=1907 loops=1)
+                                 Filter: (keyword_id = 4030)
+                                 Rows Removed by Filter: 4522023
+                           ->  Hash  (cost=51404.11..51404.11 rows=1335439 width=40) (actual time=706.830..706.831 rows=1334883 loops=1)
+                                 Buckets: 2097152  Batches: 1  Memory Usage: 81810kB
+                                 ->  Seq Scan on movie_companies mc  (cost=0.00..51404.11 rows=1335439 width=40) (actual time=237.433..481.182 rows=1334883 loops=1)
+                                       Filter: (company_type_id = 2)
+                                       Rows Removed by Filter: 1274246
+ Planning Time: 4.810 ms
+ Execution Time: 9165.351 ms
+(24 rows)

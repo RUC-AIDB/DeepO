@@ -1,6 +1,6 @@
 <img src="./docs/logo_black.png" width="200">
 
-## Source code for DeepO, A deep-learning-based query optimizer.
+#### Source code for DeepO, A deep-learning-based query optimizer.
 
 
 ### Introduction

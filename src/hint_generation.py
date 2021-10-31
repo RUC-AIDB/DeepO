@@ -30,8 +30,8 @@ def load_data(file_name):
     return tables, joins, predicates
 
 # %%
-#SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
-SQL_PATH = "/home/sunluming/demo/src/example.sql"
+SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
+# SQL_PATH = "/home/sunluming/demo/src/example.sql"
 tables, joins, predicates = load_data(SQL_PATH)
 
 # %%

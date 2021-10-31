@@ -1,8 +1,7 @@
 <img src="./docs/logo_black.png" width="200">
 
 ## Source code for DeepO, A deep-learning-based query optimizer.
----
-<!-- Cardinality estimation with predicates embedding and TreeLSTM -->
+
 
 ### Introduction
 

@@ -6,7 +6,7 @@ from tensorflow.keras.models import Sequential, Model, load_model, Model
 from tensorflow.keras import optimizers, activations
 from tensorflow.keras.layers import Dense, Flatten, LSTM, Bidirectional, SimpleRNN,Dropout
 from tensorflow.keras.losses import logcosh
-from tensorflow.metrics import mean_relative_error
+# from tensorflow.metrics import mean_relative_error
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.layers import LeakyReLU
@@ -18,18 +18,20 @@ import os
 import csv
 from tensorflow.keras import regularizers
 from matplotlib.pyplot import MultipleLocator
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-session = tf.Session(config=config)
+# config = tf.ConfigProto()
+# config.gpu_options.allow_growth = True
+# session = tf.Session(config=config)
 
 
 
 
 file_name_column_min_max_vals = "../data/column_min_max_vals.csv"
-plan_path = "../data/JOB/cardinality/"
-test_path = "../data/JOB/synthetic/"
+# plan_path = "../data/JOB/cardinality/"
+# test_path = "../data/JOB/synthetic/"
 # test_path = "../data/JOB/job-light/'
-# test_path = "../data/JOB/cardinality/'
+# test_path = "../data/JOB/cardinality/"
+plan_path = "/data/sunluming/datasets/JOB/cardinality"
+test_path = plan_path
 
 def extract_time(line):
     data = line.replace("->","").lstrip().split("  ")[-1].split(" ")
@@ -196,10 +198,10 @@ model.compile(optimizer=optimizers.Adagrad(lr=0.001), loss='mse', metrics=['mse'
 
 model.summary()
 
-model.fit(padded_sentences,label_norm,validation_split=0.2,epochs=70, batch_size=128,shuffle=True)
+model.fit(padded_sentences,label_norm,validation_split=0.2,epochs=300, batch_size=128,shuffle=True)
 
-model.save('./model/embedding_model.h5') 
-
+model.save('../model/embedding_model.h5') 
+# model.load_weights("../model/embedding_model.h5")
 
 # For validation & feature extraction
 test_sentences,test_rows,test_pg = get_data_and_label(test_path)

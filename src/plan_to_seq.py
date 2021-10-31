@@ -1,11 +1,14 @@
+# %%
 import os
 import numpy as np
 import pickle
 
-scan_features_path = '../data/*.npy'
-folder_name='../data/JOB//'
-# scan feature length: 64
+# load scan node embedded vector
+# %%
+scan_features_path = "../data/JOB.npy"
+folder_name = "/data/sunluming/datasets/JOB/cardinality"
 
+# %%
 
 def extract_time(line):
     data = line.replace("->","").lstrip().split("  ")[-1].split(" ")
@@ -80,6 +83,21 @@ def p2t(node):
     for children in node.children:
         tree['children'].append(p2t(children))
     return tree
+
+def plan2seq(node):
+    sequence = []
+    tmp = node.data
+    operators_count = 9
+    columns_count = 6
+    scan_features = 64
+    if(len(node.children)!=0):
+        for i in range(len(node.children)):
+            sequence.extend(plan2seq(node.children[i]))
+    sequence.append(tmp[:operators_count + columns_count+scan_features])
+    return sequence
+
+
+
 
 def parse_dep_tree_text(folder_name='../data/JOB/cardinality/'):
     scan_cnt = 0
@@ -212,18 +230,29 @@ class Node(object):
         return tab_spaces + "+-- Node: "+ str.join("|", self.data) + "\n"\
                 + str.join("\n", [child.__str__(tabs+2) for child in self.children])
 
-
-
 operators = ['Merge Join', 'Hash', 'Index Only Scan using title_pkey on title t', 'Sort','Seq Scan', 'Index Scan using title_pkey on title t', 'Materialize', 'Nested Loop', 'Hash Join']
 columns = ['ci.movie_id', 't.id', 'mi_idx.movie_id', 'mi.movie_id', 'mc.movie_id', 'mk.movie_id']
 scan_features = np.load(scan_features_path)
-print(len(operators))
+
 
 trees,max_children = parse_dep_tree_text(folder_name)
-
+# %%
 all_trees = []
-for tree in trees:
-    all_trees.append(p2t(tree))
 
-with open("../data/job-light_64_cat_tree.pkl","wb") as f:
+for tree in trees:
+    all_trees.append(plan2seq(tree))
+# %%
+with open("../data/job-cardinality-sequence.pkl","wb") as f:
     pickle.dump(all_trees,f)
+
+# all_trees = np.array(all_trees)
+# np.save("../data/job-cardinality-sequence.npy",all_trees)
+# %%
+cost_label = []
+for tree in trees:
+    cost_label.append(tree.data[-2])
+cost_label = np.array(cost_label)
+print(np.shape(cost_label))
+np.save("../data/cost_label.npy",cost_label)
+
+# %%

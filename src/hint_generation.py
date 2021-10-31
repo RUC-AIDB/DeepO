@@ -30,7 +30,8 @@ def load_data(file_name):
     return tables, joins, predicates
 
 # %%
-SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
+#SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
+SQL_PATH = "/home/sunluming/demo/src/example.sql"
 tables, joins, predicates = load_data(SQL_PATH)
 
 # %%
@@ -124,29 +125,29 @@ def generate_join_order_hins(tables):
     # print(join_orders)
     return join_orders
 # %%
-def construct_sql(table, join, predicates):
+def construct_sql(table, join, predicates,method="explain"):
     tables = ", ".join(table)
     print(join)
     print(predicates)
     if(join!=[""] and predicates!=[""]):
         joins = " and ".join(join)
-        sql = "explain select count(*) from {} where {} and {}"
+        sql = method + " select count(*) from {} where {} and {}"
     elif(join!=[""] and predicates==[""]):
         joins = " and ".join(join)
-        sql = "explain select count(*) from {} where {} {}"
+        sql = method + " select count(*) from {} where {} {}"
     elif(join==[""] and predicates!=[""]):
         joins = ""
-        sql = "explain select count(*) from {} where {} {}"
+        sql = method + " select count(*) from {} where {} {}"
     else:
         joins = ""
-        sql = "explain select count(*) from {} {} {}"
+        sql = method + " select count(*) from {} {} {}"
     l = []
     for n in range(len(predicates)//3):
         l.append(' '.join(predicates[n*3:n*3+3]))
     predicates = " and ".join(l)
     return sql.format(tables,joins,predicates)
 # %%
-def generate_hint_queries(query_idx):
+def generate_hint_queries(query_idx,method):
     global tables
     global joins
     global predicates
@@ -155,11 +156,10 @@ def generate_hint_queries(query_idx):
     join_order_hints = generate_join_order_hins(tables[query_idx])
     candidates = [scan_hints, join_method_hints, join_order_hints]
     hints_set = [" ".join(x) for x in cartesian(candidates, 'object')]
-    sql = construct_sql(tables[query_idx],joins[query_idx],predicates[query_idx])
+    sql = construct_sql(tables[query_idx],joins[query_idx],predicates[query_idx],method)
     queries = []
     for each in hints_set:
-        query = "LOAD 'pg_hint_plan';\
-            /*+ {} */ ".format(each) + sql + ";"
+        query = "/*+ {} */ ".format(each) + sql + ";"
         queries.append(query)
     return queries, sql+";"
 # %%
@@ -183,7 +183,7 @@ def generate_hint_queries(query_idx):
 # %%
 for query_idx in tqdm(range(0,20)):
     # query_idx = 9
-    queries_with_hint, sql = generate_hint_queries(query_idx)
+    queries_with_hint, sql = generate_hint_queries(query_idx, method="explain analyse")
     os.makedirs("../data/plan/{}".format(query_idx), mode=0o777, exist_ok=True)
     os.makedirs("../data/SQL/".format(query_idx), mode=0o777, exist_ok=True)
     os.makedirs("../data/SQL_with_hint/".format(query_idx), mode=0o777, exist_ok=True)

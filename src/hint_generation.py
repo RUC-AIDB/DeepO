@@ -30,8 +30,8 @@ def load_data(file_name):
     return tables, joins, predicates
 
 # %%
-#SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
-SQL_PATH = "/home/sunluming/demo/src/example.sql"
+SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
+# SQL_PATH = "/home/sunluming/demo/example/example.sql"
 tables, joins, predicates = load_data(SQL_PATH)
 
 # %%
@@ -79,9 +79,6 @@ def add_one_rel(cur, join_tables):
     extended_order = []
     for table in join_tables:
         if(table not in cur):
-            # print(cur)
-            # print(table)
-
             tmp = ["("]
             tmp.extend(cur)
             tmp.append(table)
@@ -94,17 +91,13 @@ def add_one_rel(cur, join_tables):
             tmp.append(")")
 
             extended_order.append(tmp)
-            # print(extended_order)
-            # break
         else:
             continue
     return extended_order
    
-
-
 def generate_join_order_hins(tables):
     if(len(tables)==1):
-        return [""]
+        return [""],[]
     join_tables = [x.split(" ")[1] for x in tables]
     num_tables = len(tables)
     str_order_length = 3*num_tables-2
@@ -121,9 +114,9 @@ def generate_join_order_hins(tables):
     str_join_orders = [" ".join(each) for each in join_orders]
     # print(str_join_orders)
     str_join_orders = set(str_join_orders)
-    join_orders = ["Leading ({})".format(each) for each in str_join_orders]
+    join_orders_string = ["Leading ({})".format(each) for each in str_join_orders]
     # print(join_orders)
-    return join_orders
+    return join_orders_string, join_orders
 # %%
 def construct_sql(table, join, predicates,method="explain"):
     tables = ", ".join(table)
@@ -146,15 +139,56 @@ def construct_sql(table, join, predicates,method="explain"):
         l.append(' '.join(predicates[n*3:n*3+3]))
     predicates = " and ".join(l)
     return sql.format(tables,joins,predicates)
+
+# %%
+def parse_order(order):
+    left = 0
+    right = len(order) - 1
+    parsed_order = []
+    while(left<right):
+        if(order[left]=="(" and order[right]==")"):
+            left += 1
+            right -= 1
+        elif(order[left]=="("):
+            parsed_order.insert(0,order[right])
+            right -= 1
+        elif(order[right]==")"):
+            parsed_order.insert(0,order[left])
+            left += 1
+        else:
+            parsed_order.insert(0,order[right])
+            parsed_order.insert(0,order[left])
+            left += 1
+            right -= 1
+    return parsed_order
+
+
+def generate_join_method_hints_from_orders(join_order_hints, join_orders_list):
+    join_methods = ["NestLoop({})","MergeJoin({})","HashJoin({})"]
+    join_hints = []
+    for order_hint, order in zip(join_order_hints,join_orders_list):
+        parsed_order = parse_order(order)
+        join_order = []
+        for idx in range(2,len(parsed_order)+1):
+            join_order.append(" ".join(parsed_order[0:idx]))
+        join_candidate = []
+        for idx,level in enumerate(join_order):
+            join_candidate.append([each.format(level) for each in join_methods])
+        candidates = [" ".join(x) for x in cartesian(join_candidate, 'object')]
+        join_hints.extend([each + " " + order_hint for each in candidates])
+    if(join_hints==[]):
+        join_hints = [""]
+    return join_hints
 # %%
 def generate_hint_queries(query_idx,method):
     global tables
     global joins
     global predicates
     scan_hints = generate_scan_hints(tables[query_idx])
-    join_method_hints = generate_join_method_hints(joins[query_idx])
-    join_order_hints = generate_join_order_hins(tables[query_idx])
-    candidates = [scan_hints, join_method_hints, join_order_hints]
+    # join_method_hints = generate_join_method_hints(joins[query_idx])
+    join_order_hints, join_orders = generate_join_order_hins(tables[query_idx])
+    join_hints = generate_join_method_hints_from_orders(join_order_hints,join_orders)
+    candidates = [scan_hints, join_hints]
     hints_set = [" ".join(x) for x in cartesian(candidates, 'object')]
     sql = construct_sql(tables[query_idx],joins[query_idx],predicates[query_idx],method)
     queries = []
@@ -200,4 +234,22 @@ for query_idx in tqdm(range(0,20)):
         
     # print(plan)
     # break
+# %%
+# for example
+# for query_idx in tqdm(range(0,1)):
+#     # query_idx = 9
+#     queries_with_hint, sql = generate_hint_queries(query_idx, method="explain analyse")
+#     os.makedirs("../example/SQL/".format(query_idx), mode=0o777, exist_ok=True)
+#     os.makedirs("../example/SQL_with_hint/".format(query_idx), mode=0o777, exist_ok=True)
+
+#     with open("../example/SQL/{}".format(query_idx),"w") as f:
+#         f.writelines(sql)
+
+#     with open("../example/SQL_with_hint/{}".format(query_idx),"w") as f:
+#         f.writelines("\n".join(queries_with_hint))
+
+
+#     for idx,query in enumerate(tqdm(queries_with_hint)):
+#         plan = get_query_plan(query,save_path="../example/optimized plans/{}".format(idx))
+        
 # %%

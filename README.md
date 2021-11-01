@@ -4,7 +4,7 @@
 
 ### Introduction
 
-DeepO is a learning-based query optimizer that offers  high-quality and fine-grained optimization to user queries. We implement DeepO and incorporate it into [PostgreSQL](https://www.postgresql.org/ftp/source/v12.4/), and we also provide with a web UI, where users can carry out the optimization operations interactively and evaluate the optimization performance.
+DeepO is a learning-based query optimizer that offers  high-quality and fine-grained optimization to user queries. We implement DeepO and incorporate it into [PostgreSQL](https://www.postgresql.org/ftp/source/v12.4/), and we also provide with a [web UI](https://github.com/RUC-AIDB/DeepO.Demo), where users can carry out the optimization operations interactively and evaluate the optimization performance.
 
 ---
 

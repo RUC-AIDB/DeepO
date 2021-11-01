@@ -30,8 +30,8 @@ def load_data(file_name):
     return tables, joins, predicates
 
 # %%
-# SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
-SQL_PATH = "/home/sunluming/demo/example/example.sql"
+SQL_PATH = "/home/sunluming/download/learnedcardinalities/data/train.csv"
+# SQL_PATH = "/home/sunluming/demo/example/example.sql"
 tables, joins, predicates = load_data(SQL_PATH)
 
 # %%
@@ -176,6 +176,8 @@ def generate_join_method_hints_from_orders(join_order_hints, join_orders_list):
             join_candidate.append([each.format(level) for each in join_methods])
         candidates = [" ".join(x) for x in cartesian(join_candidate, 'object')]
         join_hints.extend([each + " " + order_hint for each in candidates])
+    if(join_hints==[]):
+        join_hints = [""]
     return join_hints
 # %%
 def generate_hint_queries(query_idx,method):

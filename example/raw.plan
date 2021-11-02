@@ -1,22 +1,22 @@
 job=# explain analyse select count(*) from title t, movie_info mi, movie_info_idx mi_idx where t.id=mi.movie_id and t.id=mi_idx.movie_id and mi.info_type_id > 16 and mi_idx.info_type_id = 100;
                                                                          QUERY PLAN
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=479482.03..479482.04 rows=1 width=8) (actual time=3221.374..3221.378 rows=1 loops=1)
-   ->  Hash Join  (cost=118487.89..478476.29 rows=402296 width=0) (actual time=1329.890..3146.657 rows=1603946 loops=1)
+ Aggregate  (cost=523819.64..523819.65 rows=1 width=8) (actual time=6380.335..6380.397 rows=1 loops=1)
+   ->  Hash Join  (cost=143524.83..522801.27 rows=407350 width=0) (actual time=3568.861..6259.495 rows=1603946 loops=1)
          Hash Cond: (mi.movie_id = t.id)
-         ->  Seq Scan on movie_info mi  (cost=0.00..347733.64 rows=2195149 width=4) (actual time=97.373..1403.295 rows=2233850 loops=1)
+         ->  Seq Scan on movie_info mi  (cost=0.00..347529.39 rows=2237746 width=4) (actual time=966.078..2501.836 rows=2233850 loops=1)
                Filter: (info_type_id > 16)
                Rows Removed by Filter: 12601870
-         ->  Hash  (cost=112695.76..112695.76 rows=463370 width=8) (actual time=1231.757..1231.759 rows=459925 loops=1)
-               Buckets: 524288  Batches: 1  Memory Usage: 22062kB
-               ->  Hash Join  (cost=30977.56..112695.76 rows=463370 width=8) (actual time=223.639..1131.300 rows=459925 loops=1)
+         ->  Hash  (cost=135973.81..135973.81 rows=460242 width=8) (actual time=2597.347..2597.387 rows=459925 loops=1)
+               Buckets: 131072  Batches: 8  Memory Usage: 3275kB
+               ->  Hash Join  (cost=32736.46..135973.81 rows=460242 width=8) (actual time=410.739..2451.001 rows=459925 loops=1)
                      Hash Cond: (t.id = mi_idx.movie_id)
-                     ->  Seq Scan on title t  (cost=0.00..61282.00 rows=2528400 width=4) (actual time=0.013..258.959 rows=2528312 loops=1)
-                     ->  Hash  (cost=25185.44..25185.44 rows=463370 width=4) (actual time=222.923..222.924 rows=459925 loops=1)
-                           Buckets: 524288  Batches: 1  Memory Usage: 20266kB
-                           ->  Seq Scan on movie_info_idx mi_idx  (cost=0.00..25185.44 rows=463370 width=4) (actual time=0.010..147.554 rows=459925 loops=1)
+                     ->  Seq Scan on title t  (cost=0.00..61281.03 rows=2528303 width=4) (actual time=0.018..681.646 rows=2528312 loops=1)
+                     ->  Hash  (cost=25185.44..25185.44 rows=460242 width=4) (actual time=409.676..409.683 rows=459925 loops=1)
+                           Buckets: 131072  Batches: 8  Memory Usage: 3050kB
+                           ->  Seq Scan on movie_info_idx mi_idx  (cost=0.00..25185.44 rows=460242 width=4) (actual time=0.023..286.648 rows=459925 loops=1)
                                  Filter: (info_type_id = 100)
                                  Rows Removed by Filter: 920110
- Planning Time: 0.553 ms
- Execution Time: 3221.604 ms
+ Planning Time: 1.372 ms
+ Execution Time: 6381.298 ms
 (18 rows)

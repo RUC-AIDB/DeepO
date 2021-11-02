@@ -11,7 +11,7 @@ from blitz.modules import BayesianLSTM
 from blitz.utils import variational_estimator
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from joblib import dump, load
 
 # %%
@@ -21,7 +21,7 @@ with open("../data/job-cardinality-sequence.pkl","rb") as f:
 cost_label = np.load("../data/cost_label.npy").reshape(-1,1)
 print("Data loaded.")
 # %%
-sc = StandardScaler()
+sc = MinMaxScaler()
 cost_label = sc.fit_transform(cost_label)
 dump(sc, '../model/std_scaler.bin', compress=True)
 # %%
@@ -59,15 +59,22 @@ dataloader_train = torch.utils.data.DataLoader(ds, batch_size=64, shuffle=True)
 class NN(nn.Module):
     def __init__(self):
         super(NN, self).__init__()
-        self.lstm_1 = BayesianLSTM(79, 20, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
-        self.linear = nn.Linear(20, 1)
+        self.relu = nn.ReLU()
+        self.lstm_1 = BayesianLSTM(79, 32, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
+        self.linear_1 = nn.Linear(32, 16)
+        self.linear_2 = nn.Linear(16,1)
+        self.drop_out = nn.Dropout(0.2)
             
     def forward(self, x):
         x_, _ = self.lstm_1(x)
         
         #gathering only the latent end-of-sequence for the linear layer
         x_ = x_[:, -1, :]
-        x_ = self.linear(x_)
+        x_ = self.relu(x_)
+        x_ = self.linear_1(x_)
+        x_ = self.relu(x_)
+        x_ = self.drop_out(x_)
+        x_ = self.linear_2(x_)
         return x_
 # %%
 net = NN()
@@ -76,7 +83,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=0.0001)
 # %%
 iteration = 0
-epochs = 10
+epochs = 50
 for epoch in range(epochs):
     for i, (datapoints, labels) in enumerate(dataloader_train):
         optimizer.zero_grad()
@@ -91,11 +98,14 @@ for epoch in range(epochs):
         
         iteration += 1
         if iteration%250==0:
-            preds_test = net(X_test)[:,0].unsqueeze(1)
+            preds_test = net(X_test)
+            preds_test = preds_test[:,0].unsqueeze(1)
             loss_test = criterion(preds_test, y_test)
-            print("Iteration: {} Val-loss: {:.4f}".format(str(iteration), loss_test))
+            print("Epoch: {} Iteration: {} Train-loss {:.4f}  Val-loss: {:.4f}".format(str(epoch), str(iteration), loss, loss_test))
+
+    torch.save(net,"../model/cost_model_{}_minmax".format(epochs))
 # %%
-torch.save(net,"../model/cost_model_{}".format(epochs))
+
 
 # net = torch.load("../model/cost_model")
 

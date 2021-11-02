@@ -198,7 +198,7 @@ model.compile(optimizer=optimizers.Adagrad(lr=0.001), loss='mse', metrics=['mse'
 
 model.summary()
 
-model.fit(padded_sentences,label_norm,validation_split=0.2,epochs=300, batch_size=128,shuffle=True)
+model.fit(padded_sentences,label_norm,validation_split=0.2,epochs=100, batch_size=128,shuffle=True)
 
 model.save('../model/embedding_model.h5') 
 # model.load_weights("../model/embedding_model.h5")

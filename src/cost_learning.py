@@ -52,15 +52,15 @@ X_train, X_test, y_train, y_test = train_test_split(padded_sequences,
                                                     shuffle=False)
 
 ds = torch.utils.data.TensorDataset(X_train, y_train)
-dataloader_train = torch.utils.data.DataLoader(ds, batch_size=8, shuffle=True)    
+dataloader_train = torch.utils.data.DataLoader(ds, batch_size=64, shuffle=True)    
 
 # %%
 @variational_estimator
 class NN(nn.Module):
     def __init__(self):
         super(NN, self).__init__()
-        self.lstm_1 = BayesianLSTM(79, 10, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
-        self.linear = nn.Linear(10, 1)
+        self.lstm_1 = BayesianLSTM(79, 20, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
+        self.linear = nn.Linear(20, 1)
             
     def forward(self, x):
         x_, _ = self.lstm_1(x)
@@ -76,7 +76,8 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=0.0001)
 # %%
 iteration = 0
-for epoch in range(10):
+epochs = 10
+for epoch in range(epochs):
     for i, (datapoints, labels) in enumerate(dataloader_train):
         optimizer.zero_grad()
         
@@ -94,46 +95,46 @@ for epoch in range(10):
             loss_test = criterion(preds_test, y_test)
             print("Iteration: {} Val-loss: {:.4f}".format(str(iteration), loss_test))
 # %%
-# torch.save(net,"../model/cost_model")
+torch.save(net,"../model/cost_model_{}".format(epochs))
 
-net = torch.load("../model/cost_model")
+# net = torch.load("../model/cost_model")
 
 
 # %%
-def pred_cost(X,sample_nbr=100):
-    global sc
-    preds = [net(X).cpu().item() for i in range(sample_nbr)]
-    pred = np.mean(preds)
-    pred = sc.inverse_transform(pred.reshape(1,1))[0][0]
-    preds = sc.inverse_transform(preds)
-    return pred,preds
+# def pred_cost(X,sample_nbr=100):
+#     global sc
+#     preds = [net(X).cpu().item() for i in range(sample_nbr)]
+#     pred = np.mean(preds)
+#     pred = sc.inverse_transform(pred.reshape(1,1))[0][0]
+#     preds = sc.inverse_transform(preds)
+#     return pred,preds
 
-def evaluate_preds(preds, scaled_y, std_multiplier=2):
-    global sc
-    y = sc.inverse_transform(scaled_y.reshape(1,1))[0][0]
-    mean = np.mean(preds)
-    std = np.std(preds)
-    ci_upper = mean + (std_multiplier * std)
-    ci_lower = mean - (std_multiplier * std)
-    ic_acc = (ci_lower <= y) * (ci_upper >= y)
-    return y, ic_acc, (ci_upper >= y), (ci_lower <= y)
+# def evaluate_preds(preds, scaled_y, std_multiplier=2):
+#     global sc
+#     y = sc.inverse_transform(scaled_y.reshape(1,1))[0][0]
+#     mean = np.mean(preds)
+#     std = np.std(preds)
+#     ci_upper = mean + (std_multiplier * std)
+#     ci_lower = mean - (std_multiplier * std)
+#     ic_acc = (ci_lower <= y) * (ci_upper >= y)
+#     return y, ic_acc, (ci_upper >= y), (ci_lower <= y)
 
-def get_intervals(preds,std_multiplier=2):
+# def get_intervals(preds,std_multiplier=2):
     
-    mean = np.mean(preds)
-    std = np.std(preds)
+#     mean = np.mean(preds)
+#     std = np.std(preds)
     
-    upper_bound = mean + (std * std_multiplier)
-    lower_bound = mean - (std * std_multiplier)
+#     upper_bound = mean + (std * std_multiplier)
+#     lower_bound = mean - (std * std_multiplier)
 
     
-    return upper_bound,lower_bound
-# %%
+#     return upper_bound,lower_bound
+# # %%
 
 
-pred,preds = pred_cost(X_test[0].unsqueeze(0))
+# pred,preds = pred_cost(X_test[0].unsqueeze(0))
 
-unscaled_y, in_range, y_under_upper, y_above_lower = evaluate_preds(preds,y_test[0],2)
+# unscaled_y, in_range, y_under_upper, y_above_lower = evaluate_preds(preds,y_test[0],2)
 
-upper, lower = get_intervals(preds)
+# upper, lower = get_intervals(preds)
 # %%

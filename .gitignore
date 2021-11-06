@@ -7,4 +7,4 @@ src/cost_estimation.py
 example/pred_result.txt
 model/*
 src/result_analysis.py
-analysis.py
+src/analysis.py

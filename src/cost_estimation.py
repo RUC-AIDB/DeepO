@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-
+from tqdm import tqdm
 from blitz.modules import BayesianLSTM
 from blitz.utils import variational_estimator
 
@@ -80,7 +80,7 @@ def get_data_and_label(column_min_max_vals,plan_path):
             else:
                 _sentence = " ".join(plan[i].strip().split("  ")[1].split(" ")[:-1]) + " "
                 table = plan[i].strip().split("  ")[1].split(" ")[4]
-            if("actual" not in plan[i+1] and "Plan" not in plan[i+1] and "->" not in plan[i+1]):
+            if(i+1<len(plan) and "actual" not in plan[i+1] and "Plan" not in plan[i+1] and "->" not in plan[i+1]):
                 _sentence += plan[i+1].strip()
             else:
                 _sentence += table
@@ -248,7 +248,7 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
         # current_node = Node(root_tokens)
         # plan_trees.append(current_node)
     else:
-        while("->" not in lines[j] and j<len(lines)):
+        while(j<len(lines) and "->" not in lines[j]):
             extract_attributes(operator, operators,columns, lines[j], feature_vec,leaf_embedding)
             j += 1
     root_tokens = feature_vec  # 所有吗
@@ -284,7 +284,7 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
                     scan_cnt += 1
                 else:
                     j = 0
-                    while("->" not in lines[i+j] and (i+j)<len(lines)):
+                    while((i+j)<len(lines) and "->" not in lines[i+j]):
                         extract_attributes(
                             operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
                         j += 1
@@ -311,7 +311,7 @@ def parse_tree(operators,columns,leaf_embedding,plan_path):
                     scan_cnt += 1
                 else:
                     j = 0
-                    while("->" not in lines[i+j] and (i+j)<len(lines)):
+                    while((i+j)<len(lines) and "->" not in lines[i+j]):
                         extract_attributes(
                             operator, operators, columns, lines[i+j], feature_vec,leaf_embedding)
                         j += 1
@@ -351,24 +351,30 @@ def tree_embedding(leaf_embedding,plan):
 class NN(nn.Module):
     def __init__(self):
         super(NN, self).__init__()
-        self.lstm_1 = BayesianLSTM(79, 10, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
-        self.linear = nn.Linear(10, 1)
+        self.relu = nn.ReLU()
+        self.lstm_1 = BayesianLSTM(79, 32, prior_sigma_1=1, prior_pi=1, posterior_rho_init=-3.0)
+        self.linear_1 = nn.Linear(32, 16)
+        self.linear_2 = nn.Linear(16,1)
+        self.drop_out = nn.Dropout(0.2)
             
     def forward(self, x):
         x_, _ = self.lstm_1(x)
         
         #gathering only the latent end-of-sequence for the linear layer
         x_ = x_[:, -1, :]
-        x_ = self.linear(x_)
+        x_ = self.relu(x_)
+        x_ = self.linear_1(x_)
+        x_ = self.relu(x_)
+        x_ = self.drop_out(x_)
+        x_ = self.linear_2(x_)
         return x_
 
 def pred_cost(X,sample_nbr=100):
     global sc
     preds = [net(X).cpu().item() for i in range(sample_nbr)]
     pred = np.mean(preds)
-    print(pred)
     pred = sc.inverse_transform(pred.reshape(1,1))[0][0]
-    preds = sc.inverse_transform(preds)
+    preds = sc.inverse_transform(np.array(preds).reshape(-1,1))
     return pred,preds
 
 def evaluate_preds(preds, scaled_y, std_multiplier=2):
@@ -396,10 +402,10 @@ def get_intervals(preds,std_multiplier=2):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Cardinality Error Detection & Injection')
-    parser.add_argument("--plan-dir",type=str,help="path of plan needed to be optimized",default="../data/plan/9")
+    parser.add_argument("--plan-dir",type=str,help="path of plan needed to be optimized",default="../example/optimized plans")
     parser.add_argument("--leaf-embedding-path",type=str,help="model path for leaf embedding",default="../model/embedding_model.h5")
-    parser.add_argument("--cost-model-path",type=str,help="model path for TreeLSTM",default="../model/cost_model")
-    parser.add_argument("--save-path",type=str,help="file path for saving cardinality injecting queries",default="../data/injection_queries.txt")
+    parser.add_argument("--cost-model-path",type=str,help="model path for TreeLSTM",default="../model/cost_model_50_minmax")
+    parser.add_argument("--save-path",type=str,help="file path for saving result",default="../example/result.txt")
     args = parser.parse_args()
 
     plan_dir = args.plan_dir
@@ -411,10 +417,12 @@ if __name__ == "__main__":
     net = torch.load(cost_model_path)
     max_length = 8
 
+    line = []
     candidate_plans_num = len(os.listdir(plan_dir))
-    for idx in range(candidate_plans_num):
-        print(idx)
+    for idx in tqdm(range(candidate_plans_num)):
+        # print(idx)
         cur_plan_path = os.path.join(plan_dir,str(idx))
+        # print(cur_plan_path)
         leaf_embedding = leaf_embedded(cur_plan_path,model_path=leaf_model_path)
         # print("leaf embedding shape: ",np.shape(leaf_embedding))
         test_tree = tree_embedding(leaf_embedding,cur_plan_path)
@@ -428,9 +436,9 @@ if __name__ == "__main__":
         padded_sequences = np.array(padded_sequences)
         padded_sequences = torch.tensor(padded_sequences,dtype=torch.float32)
 
-        pred,preds = pred_cost(padded_sequences.unsqueeze(0))
+        pred,preds = pred_cost(padded_sequences.unsqueeze(0),100)
 
-        upper, lower = get_intervals(preds)
+        upper, lower = get_intervals(preds,1)
 
         # print("label: ", unscaled_y)
         print("prediction: ",pred)
@@ -438,5 +446,7 @@ if __name__ == "__main__":
         print("prediction lower bound: ", lower)
         print("*"*30)
         # print("label in prediction range: ",in_range)
-
-        break
+        line.append("{},{},{}".format(pred,upper,lower))
+    with open("../example/pred_result.txt",'w') as f:
+        f.writelines("\n".join(line))
+        # break
